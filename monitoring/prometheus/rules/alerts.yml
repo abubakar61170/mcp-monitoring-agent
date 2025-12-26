@@ -1,0 +1,12 @@
+groups:
+  - name: base-alerts
+    rules:
+      - alert: MonitoringTargetDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: warning
+          priority: P2
+        annotations:
+          summary: "Target down: {{ $labels.job }}"
+          description: "Prometheus cannot scrape {{ $labels.instance }} (job={{ $labels.job }}) for 1 minute."
