@@ -10,3 +10,73 @@ groups:
         annotations:
           summary: "Target down: {{ $labels.job }}"
           description: "Prometheus cannot scrape {{ $labels.instance }} (job={{ $labels.job }}) for 1 minute."
+
+
+  - name: kafka
+    rules:
+    - alert: KafkaBrokerDown
+      expr: up{job="kafka-exporter"} == 0
+      for: 1m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Kafka exporter down"
+  
+    - alert: KafkaConsumerLagDetected
+      expr: sum(kafka_consumergroup_lag) > 0
+      for: 30s
+      labels:
+        severity: warning
+      annotations:
+        summary: "Kafka consumer lag detected"
+        description: "Total consumer lag > 0."
+  
+    - alert: KafkaHighCPU
+      expr: rate(container_cpu_usage_seconds_total{container=~"kafka.*"}[5m]) > 0.8
+      for: 2m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Kafka CPU high"
+  
+  - name: infra
+    rules:
+    - alert: NodeMemoryLow
+      expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Node memory usage high"
+  
+
+  # - name: hdfs
+  #   rules:
+  #     - alert: HDFSDataNodeMissing
+  #       expr: count(up{job="namenode"}) < 1
+  #       for: 1m
+  #       labels:
+  #         severity: critical
+  #       annotations:
+  #         summary: "HDFS Namenode down"
+
+  - name: hdfs
+    rules:
+      - alert: HDFSNamenodeDown
+        # This checks the status directly; 0 means unreachable/down
+        expr: up{job="namenode"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HDFS Namenode down"
+
+  - name: clickhouse
+    rules:
+      - alert: ClickHouseTooManyConnections
+        expr: ClickHouseMetrics_Query > 50
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High Query Load on ClickHouse"

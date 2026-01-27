@@ -1,4 +1,7 @@
+version: '3.8'
+
 services:
+  # --- CORE MONITORING & AI ---
   prometheus:
     image: prom/prometheus:v2.54.1
     container_name: prometheus
@@ -8,8 +11,7 @@ services:
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
-    ports:
-      - "9090:9090"
+    ports: ["9090:9090"]
     restart: unless-stopped
 
   alertmanager:
@@ -17,8 +19,7 @@ services:
     container_name: alertmanager
     volumes:
       - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-    ports:
-      - "9093:9093"
+    ports: ["9093:9093"]
     restart: unless-stopped
 
   grafana:
@@ -27,47 +28,18 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_AUTH_ANONYMOUS_ENABLED=false
     volumes:
       - ./monitoring/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./monitoring/grafana/provisioning/dashboards.yml:/etc/grafana/provisioning/dashboards.yml:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-storage:/var/lib/grafana
-    ports:
-      - "3000:3000"
-    restart: unless-stopped
-    depends_on:
-      - prometheus
-
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.49.1
-    container_name: cadvisor
-    privileged: true
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:rw
-      - /sys:/sys:ro
-      - /var/lib/docker/:/var/lib/docker:ro
-    ports:
-      - "8080:8080"
-    restart: unless-stopped
-
-  node-exporter:
-    image: prom/node-exporter:v1.8.2
-    container_name: node-exporter
-    ports:
-      - "9100:9100"
-    restart: unless-stopped
+    ports: ["3000:3000"]
+    depends_on: ["prometheus"]
 
   mcp-monitor:
     build: ./mcp-monitor
     container_name: mcp-monitor
-    ports:
-      - "8000:8000"
-    restart: unless-stopped
-    depends_on:
-      - prometheus
-      - grafana
-      - alertmanager
+    ports: ["8000:8000"]
     environment:
       - PROMETHEUS_URL=http://prometheus:9090
       - GRAFANA_URL=http://grafana:3000
@@ -75,9 +47,107 @@ services:
       - API_TOKEN=change-me
       - GRAFANA_USER=admin
       - GRAFANA_PASS=admin
-
     volumes:
       - ./monitoring/prometheus/rules:/rules
+    depends_on: ["prometheus", "grafana"]
+
+  agent:
+    build: ./agent
+    container_name: sre-agent
+    ports: ["8501:8501"]
+    env_file: [".env"]
+    environment:
+      - MCP_URL=http://mcp-monitor:8000
+    depends_on: ["mcp-monitor"]
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+
+  # --- SYSTEM EXPORTERS ---
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.47.0
+
+    container_name: cadvisor
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports: ["8081:8080"]   # Keep 8081 to avoid conflict with Spark
+    restart: unless-stopped
+
+
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: node-exporter
+    ports: ["9100:9100"]
+
+  # --- BIG DATA COMPONENTS ---
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@kafka:9093"
+      KAFKA_LISTENERS: "PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://kafka:9092"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+
+  kafka-exporter:
+    image: danielqsj/kafka-exporter:latest
+    command: ["--kafka.server=kafka:9092"]
+    ports: ["9308:9308"]
+    depends_on: ["kafka"]
+
+  namenode:
+    image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
+    container_name: namenode
+    environment:
+      - CLUSTER_NAME=test
+    ports: ["9870:9870"]
+
+  spark-master:
+    image: apache/spark:3.4.1
+    container_name: spark-master
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    environment:
+      - SPARK_MODE=master
+    ports: ["8080:8080", "7077:7077"]
+
+  spark-worker:
+    image: apache/spark:3.4.1
+    container_name: spark-worker
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+    depends_on: ["spark-master"]
+
+
+  clickhouse:
+    image: clickhouse/clickhouse-server
+    container_name: clickhouse
+    ports: ["8123:8123"]
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+
+  clickhouse-exporter:
+    image: f1yegor/clickhouse-exporter
+    environment:
+      - CLICKHOUSE_URI=http://clickhouse:8123
+    ports: ["9116:9116"]
+    depends_on: ["clickhouse"]
 
 volumes:
   grafana-storage:
+  kafka_data:
+
+  
