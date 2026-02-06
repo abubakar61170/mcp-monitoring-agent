@@ -1,12 +1,12 @@
 groups:
 - name: dynamic-alerts
   rules:
-  - alert: TestAlertHighCPU
-    expr: up==1
-    for: 10s
+  - alert: TestAlertUpZero
+    expr: up==0
+    for: 1m
     labels:
-      severity: info
-      priority: P3
+      severity: warning
+      priority: P2
     annotations:
-      summary: TestAlertHighCPU
-      description: 'Auto-generated alert: TestAlertHighCPU'
+      summary: Test alert
+      description: Created via MCP

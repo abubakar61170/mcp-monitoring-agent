@@ -85,7 +85,7 @@ def create_alert(req: CreateAlertReq, x_api_token: str | None = Header(default=N
         ],
     }
 
-    # Load existing rules (if any)
+    # Load existing rules
     if RULES_FILE.exists():
         data = yaml.safe_load(RULES_FILE.read_text()) or {}
     else:
@@ -93,7 +93,7 @@ def create_alert(req: CreateAlertReq, x_api_token: str | None = Header(default=N
 
     groups = data.get("groups", [])
 
-    # Find or create the dynamic-alerts group
+    # Dynamic-alerts group
     dynamic_group = None
     for g in groups:
         if g.get("name") == "dynamic-alerts":
@@ -152,7 +152,7 @@ def sync_dashboard(
     if r.status_code not in (200, 202):
         raise HTTPException(status_code=500, detail=r.text)
 
-    # safe JSON parsing
+    # JSON parsing
     try:
         parsed = r.json() if r.text else None
     except Exception:

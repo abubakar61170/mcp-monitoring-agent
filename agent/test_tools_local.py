@@ -1,5 +1,3 @@
-# /agent/test_tools_local.py
-
 from tools import consult_runbook
 
 # Test runbook

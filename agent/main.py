@@ -1,5 +1,3 @@
-# /agent/main.py
-
 import sys
 from langchain_core.messages import HumanMessage
 from graph import app

@@ -18,6 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
+  "id": null,
   "links": [],
   "panels": [
     {
@@ -337,8 +338,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Infra CPU Live",
-  "uid": "afbzbyr0em1ogb",
-  "version": 1,
+  "title": "Infra Synced Dashboard",
+  "version": 2,
   "weekStart": ""
 }

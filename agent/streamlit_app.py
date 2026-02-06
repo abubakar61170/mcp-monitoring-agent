@@ -40,17 +40,17 @@ from agents import get_agent
 
 st.title("SRE Remediation Agent (Task 3)")
 
-# 1. Initialize Graph ONLY ONCE using cache
+# Initialize Graph ONLY ONCE using cache
 @st.cache_resource
 def load_agent_graph():
     return get_agent()
 
 agent_graph = load_agent_graph()
 
-# 2. Initialize Chat History in Session State
+# Initialize Chat History in Session State
 if "messages" not in st.session_state:
     st.session_state.messages = []
-# 3. Initialize Thread ID for LangGraph (Critical for continuity)
+# Initialize Thread ID for LangGraph (Critical for continuity)
 if "thread_id" not in st.session_state:
     import uuid
     st.session_state.thread_id = str(uuid.uuid4())

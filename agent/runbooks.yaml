@@ -1,5 +1,3 @@
-# /agent/runbooks.yaml
-
 kafka_lag_high:
   symptom: "Kafka Consumer Lag is high (more than 5 minutes)"
   diagnosis_steps:

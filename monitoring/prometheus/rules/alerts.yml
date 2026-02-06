@@ -31,13 +31,26 @@ groups:
         summary: "Kafka consumer lag detected"
         description: "Total consumer lag > 0."
   
-    - alert: KafkaHighCPU
-      expr: rate(container_cpu_usage_seconds_total{container=~"kafka.*"}[5m]) > 0.8
-      for: 2m
+    # - alert: KafkaHighCPU
+    #   expr: rate(container_cpu_usage_seconds_total{container=~"kafka.*"}[5m]) > 0.8
+    #   for: 2m
+    #   labels:
+    #     severity: warning
+    #   annotations:
+    #     summary: "Kafka CPU high"
+
+    - alert: KafkaConsumerLagHigh
+      expr: max_over_time(kafka_consumergroup_lag[10m]) > 0
+      for: 10m
       labels:
         severity: warning
+        priority: P2
+        service: kafka
       annotations:
-        summary: "Kafka CPU high"
+        summary: "Kafka consumer lag detected (10m)"
+        description: "Consumer lag has been non-zero for 10 minutes. Investigate consumer health and broker load."
+        runbook: "runbooks/kafka/consumer_lag.md"
+
   
   - name: infra
     rules:
@@ -50,26 +63,32 @@ groups:
         summary: "Node memory usage high"
   
 
-  # - name: hdfs
-  #   rules:
-  #     - alert: HDFSDataNodeMissing
-  #       expr: count(up{job="namenode"}) < 1
-  #       for: 1m
-  #       labels:
-  #         severity: critical
-  #       annotations:
-  #         summary: "HDFS Namenode down"
-
   - name: hdfs
     rules:
-      - alert: HDFSNamenodeDown
-        # This checks the status directly; 0 means unreachable/down
-        expr: up{job="namenode"} == 0
+      - alert: HDFSNameNodeDown
+        expr: up{job="hdfs"} == 0
         for: 1m
         labels:
           severity: critical
+          priority: P1
+          service: hdfs
         annotations:
-          summary: "HDFS Namenode down"
+          summary: "HDFS NameNode is DOWN"
+          description: "Prometheus cannot scrape NameNode (job=hdfs) for 1 minute. Check container/network/exporter."
+          runbook: "runbooks/hdfs/namenode_down.md"
+
+      - alert: HDFSNameNodeHighHeap
+        expr: (jvm_memory_bytes_used{job="hdfs",area="heap"} / jvm_memory_bytes_max{job="hdfs",area="heap"}) > 0.80
+        for: 5m
+        labels:
+          severity: warning
+          priority: P2
+          service: hdfs
+        annotations:
+          summary: "HDFS NameNode heap usage > 80% (5m)"
+          description: "NameNode heap usage has been above 80% for 5 minutes. Risk of GC pressure / OOM. Investigate workload and JVM."
+          runbook: "runbooks/hdfs/high_heap.md"
+
 
   - name: clickhouse
     rules:
@@ -80,3 +99,20 @@ groups:
           severity: warning
         annotations:
           summary: "High Query Load on ClickHouse"
+
+  - name: monitoring-partial-outage
+    rules:
+      - alert: MonitoringPartialOutage
+        expr: |
+          absent(up{job="kafka-exporter"}) OR
+          absent(up{job="spark"}) OR
+          absent(up{job="hdfs"}) OR
+          absent(up{job="clickhouse"})
+        for: 1m
+        labels:
+          severity: warning
+          priority: P2
+          component: monitoring
+        annotations:
+          summary: "Monitoring partial outage detected"
+          description: "One or more critical monitoring targets are missing metrics."

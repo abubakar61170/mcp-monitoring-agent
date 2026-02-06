@@ -27,14 +27,12 @@ scrape_configs:
     static_configs:
       - targets: ['clickhouse-exporter:9116']
   - job_name: 'spark'
-    # Spark metrics are served at /metrics/prometheus/
     metrics_path: '/metrics/prometheus'
     static_configs:
       - targets: ['spark-master:8080', 'spark-worker:8081']
 
   - job_name: 'hdfs'
-    # Namenode JMX metrics on default port
     static_configs:
       - targets: ['namenode:9981']
-    metrics_path: '/jmx'
+    metrics_path: '/metrics'
 
