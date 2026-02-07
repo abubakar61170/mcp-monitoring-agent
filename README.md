@@ -12,7 +12,7 @@ Built with **LangGraph** (ReAct agent), **MCP-Monitor** (Model Context Protocol 
 | Name | GitHub |
 |------|--------|
 | Abu Bakar | [@abubakar61170](https://github.com/abubakar61170) |
-| Neko-v | [@Neko-v](https://github.com/Neko-v) |
+| Shiwei Zhang | [@Neko-v](https://github.com/Neko-v) |
 
 ---
 
@@ -535,7 +535,7 @@ ports: ["9091:9090"]  # Map to a different host port
 | Name | GitHub | Contribution |
 |------|--------|-------------|
 | **Abu Bakar** | [@abubakar61170](https://github.com/abubakar61170) | Agent, Monitoring stack, alert rules, runbooks, MCP server, testing, deployment |
-| **Neko-v** | [@Neko-v](https://github.com/Neko-v) | Agent, testing, Dashboards |
+| **Shiwei Zhang** | [@Neko-v](https://github.com/Neko-v) | Agent, testing, Dashboards |
 
 ## Course
 
@@ -545,3 +545,4 @@ This project was developed as part of the **Big Data & Machine Learning** progra
 
 
 This project is for educational purposes as part of the ITMO Big Data & ML curriculum.
+
