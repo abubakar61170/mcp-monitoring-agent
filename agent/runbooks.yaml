@@ -1,5 +1,297 @@
-kafka_lag_high:
-  symptom: "Kafka Consumer Lag is high (more than 5 minutes)"
+# # kafka_lag_high:
+# #   symptom: "Kafka Consumer Lag is high (more than 5 minutes)"
+# #   diagnosis_steps:
+# #     - "Check 'kafka_consumergroup_lag' metric in Prometheus."
+# #     - "Check if the consumer pods are running and healthy."
+# #     - "Check if message production rate > consumption rate."
+# #   remediation_actions:
+# #     - action: "scale_up_consumer"
+# #       description: "Increase the number of consumer pods."
+# #       safety: "SAFE - if partition count allows."
+# #     - action: "restart_consumer"
+# #       description: "Restart consumer pods to clear stuck threads."
+# #       safety: "SAFE - standard procedure."
+
+# # hdfs_datanode_down:
+# #   symptom: "HDFS DataNode is down or missing"
+# #   diagnosis_steps:
+# #     - "Check 'hadoop_datanode_up' metric."
+# #     - "Check disk usage on the node."
+# #   remediation_actions:
+# #     - action: "restart_datanode"
+# #       description: "Restart the DataNode container."
+# #       safety: "SAFE - HDFS has replication."
+
+# # high_cpu_usage:
+# #   symptom: "Container CPU usage is above 90%"
+# #   diagnosis_steps:
+# #     - "Identify which container is using high CPU via 'container_cpu_usage_seconds_total'."
+# #     - "Check logs for infinite loops or heavy processing."
+# #   remediation_actions:
+# #     - action: "scale_up_resource"
+# #       description: "Increase CPU limit for the pod."
+# #       safety: "SAFE - requires redeployment."
+
+# # high_cpu_alert:
+# #   symptom: "TestAlertHighCPU or High CPU Usage"
+# #   diagnosis_steps:
+# #     - "Check actual CPU usage via 'rate(node_cpu_seconds_total{mode!=\"idle\"}[5m])'."
+# #     - "Check for runaway processes."
+# #   remediation_actions:
+# #     - action: "adjust_threshold"
+# #       description: "If metrics are low but alert fires, increase alert threshold."
+# #       safety: "SAFE - config change only."
+
+# # ===============================================================================
+# # KAFKA
+
+# KafkaBrokerDown:
+#   symptom: "Kafka broker/exporter is unreachable"
+#   diagnosis_steps:
+#     - "Check 'up{job=\"kafka-exporter\"}' metric."
+#     - "Check Kafka container logs: docker logs kafka"
+#     - "Verify network connectivity between kafka and kafka-exporter."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart the Kafka broker container."
+#       safety: "SAFE - single-node will cause brief downtime."
+#       component: "kafka"
+
+# KafkaConsumerLagDetected:
+#   symptom: "Kafka Consumer Lag is high (more than 5 minutes)"
+#   diagnosis_steps:
+#     - "Check 'kafka_consumergroup_lag' metric in Prometheus."
+#     - "Check if the consumer pods are running and healthy."
+#     - "Check if message production rate > consumption rate."
+#   remediation_actions:
+#     - action: "scale_up_consumer"
+#       description: "Increase the number of consumer pods."
+#       safety: "SAFE - if partition count allows."
+#     - action: "restart_consumer"
+#       description: "Restart consumer pods to clear stuck threads."
+#       safety: "SAFE - standard procedure."
+
+# kafka_under_replicated:
+#   symptom: "Kafka topic has under-replicated partitions"
+#   diagnosis_steps:
+#     - "Check 'kafka_topic_partition_under_replicated_partition' metric."
+#     - "Verify broker disk space and network health."
+#     - "Check if a broker recently restarted."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart the affected Kafka broker to rejoin ISR."
+#       safety: "SAFE - replication will catch up automatically."
+#       component: "kafka"
+
+
+# # HDFS
+
+# HDFSNameNodeDown:
+#   symptom: "HDFS NameNode is down or unreachable"
+#   diagnosis_steps:
+#     - "Check 'up{job=\"hdfs\"}' metric."
+#     - "Check NameNode container logs: docker logs namenode"
+#     - "Check disk usage on the node."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart the NameNode container."
+#       safety: "SAFE - HDFS metadata is persisted."
+#       component: "namenode"
+
+# hdfs_high_heap:
+#   symptom: "HDFS NameNode heap usage above 80%"
+#   diagnosis_steps:
+#     - "Check 'jvm_memory_bytes_used{job=\"hdfs\",area=\"heap\"}' metric."
+#     - "Check GC logs for full-GC frequency."
+#     - "Check number of files/blocks in HDFS."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart NameNode to reclaim heap (short-term fix)."
+#       safety: "SAFE - HDFS metadata is persisted. Brief unavailability."
+#       component: "namenode"
+
+# hdfs_gc_pause:
+#   symptom: "HDFS NameNode GC pauses are high"
+#   diagnosis_steps:
+#     - "Check 'rate(jvm_gc_collection_seconds_sum{job=\"hdfs\"}[5m])' metric."
+#     - "Verify heap size configuration."
+#     - "Check for metadata-heavy operations (large ls, snapshot)."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart NameNode to reset JVM state."
+#       safety: "SAFE - causes brief HDFS unavailability."
+#       component: "namenode"
+
+
+# # SPARK
+
+# SparkMasterDown:
+#   symptom: "Spark Master is down or unreachable"
+#   diagnosis_steps:
+#     - "Check 'up{job=\"spark\", instance=~\".*spark-master.*\"}' metric."
+#     - "Check container logs: docker logs spark-master"
+#     - "Verify port 8080 and 7077 are accessible."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart the Spark Master container."
+#       safety: "SAFE - running jobs may fail, but master will recover."
+#       component: "spark-master"
+
+# spark_worker_down:
+#   symptom: "Spark Worker is down or unreachable"
+#   diagnosis_steps:
+#     - "Check 'up{job=\"spark\", instance=~\".*spark-worker.*\"}' metric."
+#     - "Check container logs: docker logs spark-worker"
+#     - "Verify worker can reach master on port 7077."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart the Spark Worker container."
+#       safety: "SAFE - tasks on this worker will be rescheduled."
+#       component: "spark-worker"
+
+# spark_cpu_high:
+#   symptom: "Spark container CPU usage is very high"
+#   diagnosis_steps:
+#     - "Check 'rate(container_cpu_usage_seconds_total{name=~\"spark.*\"}[5m])' metric."
+#     - "Check Spark UI for long-running stages or data skew."
+#     - "Check for excessive shuffle operations."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart worker to kill runaway executors."
+#       safety: "SAFE - Spark will reschedule tasks."
+#       component: "spark-worker"
+
+
+# # CLICKHOUSE
+
+# ClickHouseDown:
+#   symptom: "ClickHouse server is down or unreachable"
+#   diagnosis_steps:
+#     - "Check 'up{job=\"clickhouse\"}' metric."
+#     - "Check container logs: docker logs clickhouse"
+#     - "Test HTTP ping: curl http://localhost:8123/ping"
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart the ClickHouse container."
+#       safety: "SAFE - data is persisted. Queries in-flight will fail."
+#       component: "clickhouse"
+
+# clickhouse_high_queries:
+#   symptom: "ClickHouse has too many concurrent queries (>50)"
+#   diagnosis_steps:
+#     - "Check 'ClickHouseMetrics_Query' metric."
+#     - "Identify slow queries via system.query_log."
+#     - "Check for missing indexes or full-scan queries."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart ClickHouse to kill stuck queries (last resort)."
+#       safety: "SAFE - but drops all in-flight queries."
+#       component: "clickhouse"
+
+# clickhouse_slow_inserts:
+#   symptom: "ClickHouse insert throughput is abnormally low"
+#   diagnosis_steps:
+#     - "Check 'rate(ClickHouseProfileEvents_InsertedRows[5m])' metric."
+#     - "Check merge activity and parts count."
+#     - "Check disk I/O saturation."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart ClickHouse to clear merge backlog."
+#       safety: "SAFE - short downtime, data persisted."
+#       component: "clickhouse"
+
+
+# # INFRA / CONTAINERS
+
+# high_cpu_usage:
+#   symptom: "Container CPU usage is above 80%"
+#   diagnosis_steps:
+#     - "Identify which container via 'rate(container_cpu_usage_seconds_total[5m])'."
+#     - "Check container logs for infinite loops or heavy processing."
+#     - "Check cAdvisor dashboard for trends."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart the offending container."
+#       safety: "SAFE - standard procedure."
+
+# high_memory_usage:
+#   symptom: "Container or node memory usage is above 85%"
+#   diagnosis_steps:
+#     - "Check 'container_memory_usage_bytes' for per-container breakdown."
+#     - "Check 'node_memory_MemAvailable_bytes' for host-level."
+#     - "Identify memory-leaking containers."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart the memory-heavy container."
+#       safety: "SAFE - clears memory. Service briefly unavailable."
+
+# disk_almost_full:
+#   symptom: "Disk usage above 85% on a mount point"
+#   diagnosis_steps:
+#     - "Check 'node_filesystem_avail_bytes' by mountpoint."
+#     - "Identify large files: docker logs, data volumes."
+#     - "Check if log rotation is configured."
+#   remediation_actions:
+#     - action: "clear_logs"
+#       description: "Truncate old container logs."
+#       safety: "SAFE - only removes historical logs."
+
+# # SLO / SLA
+
+# slo_availability:
+#   symptom: "Core service availability SLO is violated"
+#   diagnosis_steps:
+#     - "Check 'up' metric for all core services."
+#     - "Identify which specific service is down."
+#     - "Escalate: SLA breach window has started."
+#   remediation_actions:
+#     - action: "restart_container"
+#       description: "Restart the failed service container."
+#       safety: "SAFE - immediate action required to stop SLA clock."
+
+# slo_kafka_lag_budget:
+#   symptom: "Kafka lag error budget is burning — total lag > 5000 for 15m"
+#   diagnosis_steps:
+#     - "Check 'sum(kafka_consumergroup_lag)' metric."
+#     - "Identify which consumer group/topic is lagging most."
+#     - "Check broker health and consumer pod status."
+#   remediation_actions:
+#     - action: "restart_consumer"
+#       description: "Restart consumer pods to clear backlog."
+#       safety: "SAFE - standard recovery procedure."
+#     - action: "scale_up_consumer"
+#       description: "Scale up consumer count."
+#       safety: "SAFE - if partition count allows."
+
+
+# ==========================
+# KAFKA
+# ==========================
+KafkaBrokerDown:
+  symptom: "Kafka broker/exporter is unreachable"
+  diagnosis_steps:
+    - "Check 'up{job=\"kafka-exporter\"}' metric."
+    - "Check Kafka container logs: docker logs kafka"
+    - "Verify network connectivity between kafka and kafka-exporter."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the Kafka broker container."
+      safety: "SAFE - single-node will cause brief downtime."
+      component: "kafka"
+
+KafkaConsumerLagDetected:
+  symptom: "Kafka Consumer Lag is detected (lag > 100)"
+  diagnosis_steps:
+    - "Check 'kafka_consumergroup_lag' metric in Prometheus."
+    - "Check if the consumer pods are running and healthy."
+    - "Check if message production rate > consumption rate."
+  remediation_actions:
+    - action: "restart_consumer"
+      description: "Restart consumer pods to clear stuck threads."
+      safety: "SAFE - standard procedure."
+
+KafkaConsumerLagHigh:
+  symptom: "Kafka Consumer Lag is critically high (> 1000 for 10 minutes)"
   diagnosis_steps:
     - "Check 'kafka_consumergroup_lag' metric in Prometheus."
     - "Check if the consumer pods are running and healthy."
@@ -12,32 +304,313 @@ kafka_lag_high:
       description: "Restart consumer pods to clear stuck threads."
       safety: "SAFE - standard procedure."
 
-hdfs_datanode_down:
-  symptom: "HDFS DataNode is down or missing"
+KafkaUnderReplicatedPartitions:
+  symptom: "Kafka topic has under-replicated partitions"
   diagnosis_steps:
-    - "Check 'hadoop_datanode_up' metric."
+    - "Check 'kafka_topic_partition_under_replicated_partition' metric."
+    - "Verify broker disk space and network health."
+    - "Check if a broker recently restarted."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the affected Kafka broker to rejoin ISR."
+      safety: "SAFE - replication will catch up automatically."
+      component: "kafka"
+
+KafkaTopicCountDrop:
+  symptom: "No Kafka topics found — broker may have lost metadata"
+  diagnosis_steps:
+    - "Check 'count(kafka_topic_partitions)' metric."
+    - "Check kafka-exporter logs for connectivity issues."
+    - "Verify broker is running: docker logs kafka"
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the Kafka broker container."
+      safety: "SAFE - metadata is in KRaft log."
+      component: "kafka"
+
+# ==========================
+# HDFS
+# ==========================
+HDFSNameNodeDown:
+  symptom: "HDFS NameNode is down or unreachable"
+  diagnosis_steps:
+    - "Check 'up{job=\"hdfs\"}' metric."
+    - "Check NameNode container logs: docker logs namenode"
     - "Check disk usage on the node."
   remediation_actions:
-    - action: "restart_datanode"
-      description: "Restart the DataNode container."
-      safety: "SAFE - HDFS has replication."
+    - action: "restart_container"
+      description: "Restart the NameNode container."
+      safety: "SAFE - HDFS metadata is persisted."
+      component: "namenode"
 
-high_cpu_usage:
-  symptom: "Container CPU usage is above 90%"
+HDFSNameNodeHighHeap:
+  symptom: "HDFS NameNode heap usage above 80%"
   diagnosis_steps:
-    - "Identify which container is using high CPU via 'container_cpu_usage_seconds_total'."
-    - "Check logs for infinite loops or heavy processing."
+    - "Check 'jvm_memory_bytes_used{job=\"hdfs\",area=\"heap\"}' metric."
+    - "Check GC logs for full-GC frequency."
+    - "Check number of files/blocks in HDFS."
   remediation_actions:
-    - action: "scale_up_resource"
-      description: "Increase CPU limit for the pod."
-      safety: "SAFE - requires redeployment."
+    - action: "restart_container"
+      description: "Restart NameNode to reclaim heap (short-term fix)."
+      safety: "SAFE - HDFS metadata is persisted. Brief unavailability."
+      component: "namenode"
 
-high_cpu_alert:
-  symptom: "TestAlertHighCPU or High CPU Usage"
+HDFSNameNodeGCPause:
+  symptom: "HDFS NameNode GC pauses are high"
   diagnosis_steps:
-    - "Check actual CPU usage via 'rate(node_cpu_seconds_total{mode!=\"idle\"}[5m])'."
-    - "Check for runaway processes."
+    - "Check 'rate(jvm_gc_collection_seconds_sum{job=\"hdfs\"}[5m])' metric."
+    - "Verify heap size configuration."
+    - "Check for metadata-heavy operations (large ls, snapshot)."
   remediation_actions:
-    - action: "adjust_threshold"
-      description: "If metrics are low but alert fires, increase alert threshold."
-      safety: "SAFE - config change only."
+    - action: "restart_container"
+      description: "Restart NameNode to reset JVM state."
+      safety: "SAFE - causes brief HDFS unavailability."
+      component: "namenode"
+
+HDFSNameNodeThreadsHigh:
+  symptom: "HDFS NameNode thread count is very high (> 500)"
+  diagnosis_steps:
+    - "Check 'jvm_threads_current{job=\"hdfs\"}' metric."
+    - "Check for connection storms from clients."
+    - "Check handler thread pool configuration."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart NameNode to reset thread state."
+      safety: "SAFE - causes brief HDFS unavailability."
+      component: "namenode"
+
+# ==========================
+# SPARK
+# ==========================
+SparkMasterDown:
+  symptom: "Spark Master is down or unreachable"
+  diagnosis_steps:
+    - "Check 'up{job=\"spark\", instance=~\".*spark-master.*\"}' metric."
+    - "Check container logs: docker logs spark-master"
+    - "Verify port 8080 and 7077 are accessible."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the Spark Master container."
+      safety: "SAFE - running jobs may fail, but master will recover."
+      component: "spark-master"
+
+SparkWorkerDown:
+  symptom: "Spark Worker is down or unreachable"
+  diagnosis_steps:
+    - "Check 'up{job=\"spark\", instance=~\".*spark-worker.*\"}' metric."
+    - "Check container logs: docker logs spark-worker"
+    - "Verify worker can reach master on port 7077."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the Spark Worker container."
+      safety: "SAFE - tasks on this worker will be rescheduled."
+      component: "spark-worker"
+
+SparkWorkerCPUHigh:
+  symptom: "Spark Worker container CPU usage is very high (> 80%)"
+  diagnosis_steps:
+    - "Check 'rate(container_cpu_usage_seconds_total{name=~\"spark-worker.*\"}[5m])' metric."
+    - "Check Spark UI for long-running stages or data skew."
+    - "Check for excessive shuffle operations."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart worker to kill runaway executors."
+      safety: "SAFE - Spark will reschedule tasks."
+      component: "spark-worker"
+
+SparkMasterCPUHigh:
+  symptom: "Spark Master container CPU usage is very high (> 80%)"
+  diagnosis_steps:
+    - "Check 'rate(container_cpu_usage_seconds_total{name=~\"spark-master.*\"}[5m])' metric."
+    - "Check Spark UI for scheduling bottlenecks."
+    - "Check if too many applications are queued."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart Spark Master to clear scheduling state."
+      safety: "SAFE - running jobs may fail but master recovers."
+      component: "spark-master"
+
+# ==========================
+# CLICKHOUSE
+# ==========================
+ClickHouseDown:
+  symptom: "ClickHouse server is down or unreachable"
+  diagnosis_steps:
+    - "Check 'up{job=\"clickhouse\"}' metric."
+    - "Check container logs: docker logs clickhouse"
+    - "Test HTTP ping: curl http://localhost:8123/ping"
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the ClickHouse container."
+      safety: "SAFE - data is persisted. Queries in-flight will fail."
+      component: "clickhouse"
+
+ClickHouseTooManyConnections:
+  symptom: "ClickHouse has too many concurrent queries (> 50)"
+  diagnosis_steps:
+    - "Check 'ClickHouseMetrics_Query' metric."
+    - "Identify slow queries via system.query_log."
+    - "Check for missing indexes or full-scan queries."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart ClickHouse to kill stuck queries (last resort)."
+      safety: "SAFE - but drops all in-flight queries."
+      component: "clickhouse"
+
+ClickHouseSlowInserts:
+  symptom: "ClickHouse insert throughput is abnormally low"
+  diagnosis_steps:
+    - "Check 'rate(ClickHouseProfileEvents_InsertedRows[5m])' metric."
+    - "Check merge activity and parts count."
+    - "Check disk I/O saturation."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart ClickHouse to clear merge backlog."
+      safety: "SAFE - short downtime, data persisted."
+      component: "clickhouse"
+
+ClickHouseReplicasMaxAbsoluteDelay:
+  symptom: "ClickHouse replication delay exceeds 5 minutes"
+  diagnosis_steps:
+    - "Check 'ClickHouseAsyncMetrics_ReplicasMaxAbsoluteDelay' metric."
+    - "Check ZooKeeper/Keeper connectivity."
+    - "Check disk throughput on replica nodes."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart ClickHouse replica to force re-sync."
+      safety: "SAFE - replica will catch up from leader."
+      component: "clickhouse"
+
+# ==========================
+# INFRA / CONTAINERS
+# ==========================
+MonitoringTargetDown:
+  symptom: "A Prometheus scrape target is down"
+  diagnosis_steps:
+    - "Check 'up' metric to identify which job/instance is down."
+    - "Check container status: docker ps"
+    - "Check network connectivity on the monitoring network."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the affected container."
+      safety: "SAFE - standard procedure."
+
+NodeMemoryHigh:
+  symptom: "Node memory usage is above 85%"
+  diagnosis_steps:
+    - "Check 'node_memory_MemAvailable_bytes' for host-level."
+    - "Check 'container_memory_usage_bytes' for per-container breakdown."
+    - "Identify memory-leaking containers."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the memory-heavy container."
+      safety: "SAFE - clears memory. Service briefly unavailable."
+
+NodeCPUHigh:
+  symptom: "Node CPU usage is above 85%"
+  diagnosis_steps:
+    - "Check 'rate(node_cpu_seconds_total{mode=\"idle\"}[5m])' metric."
+    - "Check 'rate(container_cpu_usage_seconds_total[5m])' per container."
+    - "Identify CPU-hungry containers via cAdvisor."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the offending container."
+      safety: "SAFE - standard procedure."
+
+NodeDiskAlmostFull:
+  symptom: "Disk usage above 85% on a mount point"
+  diagnosis_steps:
+    - "Check 'node_filesystem_avail_bytes' by mountpoint."
+    - "Identify large files: docker logs, data volumes."
+    - "Check if log rotation is configured."
+  remediation_actions:
+    - action: "clear_logs"
+      description: "Truncate old container logs."
+      safety: "SAFE - only removes historical logs."
+
+ContainerRestarting:
+  symptom: "A container is restart-looping"
+  diagnosis_steps:
+    - "Check 'container_start_time_seconds' for recent restarts."
+    - "Check container logs: docker logs <name>"
+    - "Check for OOMKilled or exit code errors."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the container with a clean state."
+      safety: "SAFE - may stabilize the container."
+
+ContainerCPUHigh:
+  symptom: "A specific container CPU usage is above 80%"
+  diagnosis_steps:
+    - "Identify which container via 'rate(container_cpu_usage_seconds_total[5m])'."
+    - "Check container logs for infinite loops or heavy processing."
+    - "Check cAdvisor dashboard for trends."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the offending container."
+      safety: "SAFE - standard procedure."
+
+ContainerMemoryHigh:
+  symptom: "A specific container memory usage is above 85% of its limit"
+  diagnosis_steps:
+    - "Check 'container_memory_usage_bytes / container_spec_memory_limit_bytes'."
+    - "Check for memory leaks in application logs."
+    - "Check if memory limit is too low for the workload."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the container to reclaim memory."
+      safety: "SAFE - clears memory. Service briefly unavailable."
+
+# ==========================
+# MONITORING HEALTH
+# ==========================
+MonitoringPartialOutage:
+  symptom: "One or more monitoring targets are missing entirely — observability is degraded"
+  diagnosis_steps:
+    - "Check which jobs are absent via 'absent(up{job=...})'."
+    - "Check if exporter containers are running: docker ps"
+    - "Check Prometheus targets page at :9090/targets."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the missing exporter container."
+      safety: "SAFE - restores observability."
+
+# ==========================
+# SLO / SLA
+# ==========================
+SLOHighErrorRate:
+  symptom: "Core service availability SLO is violated — services unreachable for 5m"
+  diagnosis_steps:
+    - "Check 'up' metric for all core services."
+    - "Identify which specific service is down."
+    - "Escalate: SLA breach window has started."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart the failed service container."
+      safety: "SAFE - immediate action required to stop SLA clock."
+
+SLOKafkaLagBudgetBurn:
+  symptom: "Kafka lag error budget is burning — total lag > 5000 for 15m"
+  diagnosis_steps:
+    - "Check 'sum(kafka_consumergroup_lag)' metric."
+    - "Identify which consumer group/topic is lagging most."
+    - "Check broker health and consumer pod status."
+  remediation_actions:
+    - action: "restart_consumer"
+      description: "Restart consumer pods to clear backlog."
+      safety: "SAFE - standard recovery procedure."
+    - action: "scale_up_consumer"
+      description: "Scale up consumer count."
+      safety: "SAFE - if partition count allows."
+
+SLOHighLatencyP99:
+  symptom: "Prometheus API P99 latency exceeds 2 seconds for 10m"
+  diagnosis_steps:
+    - "Check 'histogram_quantile(0.99, ...)' for Prometheus HTTP latency."
+    - "Check Prometheus resource usage (CPU, memory)."
+    - "Check if too many recording rules or queries are running."
+  remediation_actions:
+    - action: "restart_container"
+      description: "Restart Prometheus to clear query backlog."
+      safety: "SAFE - brief gap in metrics collection."
+      component: "prometheus"

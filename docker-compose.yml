@@ -12,6 +12,8 @@ services:
       - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
     ports: ["9090:9090"]
     restart: unless-stopped
+    networks:
+      - monitoring
 
   alertmanager:
     image: prom/alertmanager:v0.27.0
@@ -20,6 +22,8 @@ services:
       - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     ports: ["9093:9093"]
     restart: unless-stopped
+    networks:
+      - monitoring
 
   grafana:
     image: grafana/grafana:11.2.2
@@ -82,7 +86,7 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
       - /dev/disk/:/dev/disk:ro
-    ports: ["8080:8080"]
+    ports: ["8085:8080"]
     restart: unless-stopped
     networks:
       - monitoring
@@ -95,6 +99,7 @@ services:
     restart: unless-stopped
     networks: 
       - monitoring
+
   kafka:
     image: confluentinc/cp-kafka:latest
     container_name: kafka
@@ -116,6 +121,9 @@ services:
     volumes:
       - kafka_data:/var/lib/kafka/data
 
+    networks:
+      - monitoring
+
   kafka-exporter:
     image: danielqsj/kafka-exporter:latest
     container_name: kafka-exporter
@@ -127,6 +135,8 @@ services:
     ports: ["9308:9308"]
     depends_on: ["kafka"]
     restart: unless-stopped
+    networks:
+      - monitoring
 
   namenode:
     image: bde2020/hadoop-namenode:2.0.0-hadoop3.2.1-java8
@@ -139,6 +149,8 @@ services:
     ports: 
       - "9870:9870"
       - "9981:9981"
+    networks:
+      - monitoring
 
   spark-master:
     image: apache/spark:3.4.1
@@ -149,6 +161,8 @@ services:
     volumes:
     - ./monitoring/spark/metrics.properties:/opt/spark/conf/metrics.properties:ro
     ports: ["8080:8080", "7077:7077"]
+    networks:
+      - monitoring
 
   spark-worker:
     image: apache/spark:3.4.1
@@ -161,7 +175,8 @@ services:
       - ./monitoring/spark/metrics.properties:/opt/spark/conf/metrics.properties:ro
     depends_on: ["spark-master"]
     ports: ["8082:8081"] 
-
+    networks: 
+      - monitoring
 
   clickhouse:
     image: clickhouse/clickhouse-server
@@ -178,6 +193,8 @@ services:
       interval: 10s
       timeout: 3s
       retries: 20
+    networks:
+      - monitoring
 
   # clickhouse-exporter:
   #   image: f1yegor/clickhouse-exporter
@@ -199,6 +216,8 @@ services:
     depends_on:
       clickhouse:
         condition: service_healthy
+    networks:
+      - monitoring
     restart: unless-stopped
 
 
@@ -206,3 +225,7 @@ volumes:
   grafana-storage:
   kafka_data:
 
+
+networks:
+  monitoring:
+    driver: bridge

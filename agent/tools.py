@@ -95,23 +95,38 @@ def consult_runbook(keyword: str) -> str:
     """
     Search the internal remediation runbook (knowledge base) for a specific symptom or component.
     Use this to find 'safe' actions to perform.
-    Input example: 'kafka', 'datanode', 'cpu'.
+    Input can be an alert name like 'KafkaBrokerDown' or a keyword like 'kafka', 'cpu', 'hdfs'.
     """
     runbooks = _load_runbooks()
     results = []
-    
-    keyword = keyword.lower()
+
+    # Normalize: lowercase and strip underscores/hyphens/spaces for fuzzy matching
+    def normalize(s: str) -> str:
+        return s.lower().replace("_", "").replace("-", "").replace(" ", "")
+
+    keyword_norm = normalize(keyword)
+
     for key, content in runbooks.items():
-        # Search in the key or symptom description
-        if keyword in key.lower() or keyword in content.get("symptom", "").lower():
-            results.append(f"=== SCENARIO: {key} ===\n"
+        key_norm = normalize(key)
+        symptom_norm = normalize(content.get("symptom", ""))
+
+        # Match if:
+        # 1. Exact normalized match (KafkaBrokerDown == kafkabrokerdown)
+        # 2. Keyword is a substring of the key (e.g. "kafka" in "kafkabrokerdown")
+        # 3. Keyword is a substring of the symptom
+        # 4. Key contains the keyword
+        if (keyword_norm == key_norm or
+            keyword_norm in key_norm or
+            keyword_norm in symptom_norm or
+            key_norm in keyword_norm):
+            results.append(f"=== RUNBOOK: {key} ===\n"
                            f"Symptom: {content.get('symptom')}\n"
                            f"Diagnosis Steps: {content.get('diagnosis_steps')}\n"
                            f"Allowed Actions: {content.get('remediation_actions')}\n")
-    
+
     if not results:
         return f"No runbook entries found for keyword '{keyword}'. Please analyze based on general SRE principles."
-    
+
     return "\n".join(results)
 
 @tool
@@ -139,47 +154,6 @@ def generate_dry_run_plan(action: str, reason: str, affected_component: str) -> 
     # STATUS: PENDING HUMAN APPROVAL                      #
     #######################################################
     """
-    
-# @tool
-# def execute_remediation_action(action: str, component: str, confirm_token: str = "YES") -> str:
-#     """
-#     EXECUTES a remediation action on the cluster.
-#     CRITICAL: This tool changes system state. 
-#     It should ONLY be called after the user explicitly confirms the 'Dry Run' plan.
-    
-#     Args:
-#         action: The action key (e.g., 'restart_consumer', 'scale_up_spark').
-#         component: The target component (e.g., 'kafka-broker-1').
-#         confirm_token: Must be 'YES' to proceed.
-#     """
-#     # In a real system, this would call Kubernetes API, Ansible, or SSH.
-#     # For this project, we SIMULATE the fix by logging it and potentially clearing an alert.
-    
-#     import time
-#     time.sleep(2) # Simulate work
-    
-#     valid_actions = [
-#         "restart_consumer", 
-#         "scale_up", 
-#         "restart_datanode", 
-#         "clear_cache",
-#         "restart_spark_master",
-#         "restart_spark_worker"
-#     ]
-
-    
-#     if action not in valid_actions:
-#         return f"FAILURE: Action '{action}' is not in the allowed safety whitelist."
-
-#     # Return a success message that looks like a system log
-#     return f"""
-#     [EXECUTION LOG]
-#     Target: {component}
-#     Action: {action}
-#     Status: SUCCESS
-#     Timestamp: {time.time()}
-#     Effect: Successfully executed '{action}' on '{component}'. Service stability should restore shortly.
-#     """
 
 
 @tool

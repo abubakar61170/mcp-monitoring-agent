@@ -1,4 +1,121 @@
+# groups:
+#   # BASE / INFRA ALERTS
+#   - name: base-alerts
+#     rules:
+#       - alert: MonitoringTargetDown
+#         expr: up == 0
+#         for: 1m
+#         labels:
+#           severity: warning
+#           priority: P2
+#         annotations:
+#           summary: "Target down: {{ $labels.job }}"
+#           description: "Prometheus cannot scrape {{ $labels.instance }} (job={{ $labels.job }}) for 1 minute."
+#           runbook: "runbooks/base/target_down.md"
+
+
+#   - name: kafka
+#     rules:
+#     - alert: KafkaBrokerDown
+#       expr: up{job="kafka-exporter"} == 0
+#       for: 1m
+#       labels:
+#         severity: critical
+#       annotations:
+#         summary: "Kafka exporter down"
+  
+#     - alert: KafkaConsumerLagDetected
+#       expr: sum(kafka_consumergroup_lag) > 0
+#       for: 30s
+#       labels:
+#         severity: warning
+#       annotations:
+#         summary: "Kafka consumer lag detected"
+#         description: "Total consumer lag > 0."
+
+#     - alert: KafkaConsumerLagHigh
+#       expr: max_over_time(kafka_consumergroup_lag[10m]) > 0
+#       for: 10m
+#       labels:
+#         severity: warning
+#         priority: P2
+#         service: kafka
+#       annotations:
+#         summary: "Kafka consumer lag detected (10m)"
+#         description: "Consumer lag has been non-zero for 10 minutes. Investigate consumer health and broker load."
+#         runbook: "runbooks/kafka/consumer_lag.md"
+
+  
+#   - name: infra
+#     rules:
+#     - alert: NodeMemoryLow
+#       expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
+#       for: 5m
+#       labels:
+#         severity: warning
+#       annotations:
+#         summary: "Node memory usage high"
+  
+
+#   - name: hdfs
+#     rules:
+#       - alert: HDFSNameNodeDown
+#         expr: up{job="hdfs"} == 0
+#         for: 1m
+#         labels:
+#           severity: critical
+#           priority: P1
+#           service: hdfs
+#         annotations:
+#           summary: "HDFS NameNode is DOWN"
+#           description: "Prometheus cannot scrape NameNode (job=hdfs) for 1 minute. Check container/network/exporter."
+#           runbook: "runbooks/hdfs/namenode_down.md"
+
+#       - alert: HDFSNameNodeHighHeap
+#         expr: (jvm_memory_bytes_used{job="hdfs",area="heap"} / jvm_memory_bytes_max{job="hdfs",area="heap"}) > 0.80
+#         for: 5m
+#         labels:
+#           severity: warning
+#           priority: P2
+#           service: hdfs
+#         annotations:
+#           summary: "HDFS NameNode heap usage > 80% (5m)"
+#           description: "NameNode heap usage has been above 80% for 5 minutes. Risk of GC pressure / OOM. Investigate workload and JVM."
+#           runbook: "runbooks/hdfs/high_heap.md"
+
+
+#   - name: clickhouse
+#     rules:
+#       - alert: ClickHouseTooManyConnections
+#         expr: ClickHouseMetrics_Query > 50
+#         for: 1m
+#         labels:
+#           severity: warning
+#         annotations:
+#           summary: "High Query Load on ClickHouse"
+
+#   - name: monitoring-partial-outage
+#     rules:
+#       - alert: MonitoringPartialOutage
+#         expr: |
+#           absent(up{job="kafka-exporter"}) OR
+#           absent(up{job="spark"}) OR
+#           absent(up{job="hdfs"}) OR
+#           absent(up{job="clickhouse"})
+#         for: 1m
+#         labels:
+#           severity: warning
+#           priority: P2
+#           component: monitoring
+#         annotations:
+#           summary: "Monitoring partial outage detected"
+#           description: "One or more critical monitoring targets are missing metrics."
+
+
 groups:
+
+  # INFRA ALERTS
+  
   - name: base-alerts
     rules:
       - alert: MonitoringTargetDown
@@ -10,58 +127,148 @@ groups:
         annotations:
           summary: "Target down: {{ $labels.job }}"
           description: "Prometheus cannot scrape {{ $labels.instance }} (job={{ $labels.job }}) for 1 minute."
+          runbook: "runbooks/base/target_down.md"
 
+  - name: infra
+    rules:
+      - alert: NodeMemoryHigh
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          priority: P2
+          service: node
+        annotations:
+          summary: "Node memory usage > 85% for 5m"
+          description: "Host memory utilisation is {{ $value | humanizePercentage }}. Consider scaling or investigating memory-hungry containers."
+          runbook: "runbooks/infra/memory_high.md"
+
+      - alert: NodeCPUHigh
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 5m
+        labels:
+          severity: warning
+          priority: P2
+          service: node
+        annotations:
+          summary: "Node CPU usage > 85% for 5m"
+          description: "Host CPU utilisation is {{ $value | printf \"%.1f\" }}%. Investigate hot containers via cAdvisor."
+          runbook: "runbooks/infra/cpu_high.md"
+
+      - alert: NodeDiskAlmostFull
+        expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"}) > 0.85
+        for: 10m
+        labels:
+          severity: critical
+          priority: P1
+          service: node
+        annotations:
+          summary: "Disk usage > 85% on {{ $labels.mountpoint }}"
+          description: "Filesystem {{ $labels.device }} on {{ $labels.instance }} is {{ $value | humanizePercentage }} full."
+          runbook: "runbooks/infra/disk_full.md"
+
+      - alert: ContainerRestarting
+        expr: increase(container_last_seen{name!=""}[10m]) == 0 and increase(container_start_time_seconds{name!=""}[10m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          priority: P2
+          service: docker
+        annotations:
+          summary: "Container {{ $labels.name }} is restart-looping"
+          description: "Container {{ $labels.name }} has been restarting repeatedly over 10 minutes."
+          runbook: "runbooks/infra/container_restart.md"
+
+      - alert: ContainerCPUHigh
+        expr: (rate(container_cpu_usage_seconds_total{name!=""}[5m])) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          priority: P2
+          service: docker
+        annotations:
+          summary: "Container {{ $labels.name }} CPU > 80%"
+          description: "Container {{ $labels.name }} is using {{ $value | printf \"%.1f\" }}% CPU cores for 5 minutes."
+          runbook: "runbooks/infra/container_cpu.md"
+
+      - alert: ContainerMemoryHigh
+        expr: (container_memory_usage_bytes{name!=""} / container_spec_memory_limit_bytes{name!=""}) > 0.85 and container_spec_memory_limit_bytes{name!=""} > 0
+        for: 5m
+        labels:
+          severity: warning
+          priority: P2
+          service: docker
+        annotations:
+          summary: "Container {{ $labels.name }} memory > 85% of limit"
+          description: "Container {{ $labels.name }} is using {{ $value | humanizePercentage }} of its memory limit."
+          runbook: "runbooks/infra/container_memory.md"
+
+
+  # KAFKA ALERTS
 
   - name: kafka
     rules:
-    - alert: KafkaBrokerDown
-      expr: up{job="kafka-exporter"} == 0
-      for: 1m
-      labels:
-        severity: critical
-      annotations:
-        summary: "Kafka exporter down"
-  
-    - alert: KafkaConsumerLagDetected
-      expr: sum(kafka_consumergroup_lag) > 0
-      for: 30s
-      labels:
-        severity: warning
-      annotations:
-        summary: "Kafka consumer lag detected"
-        description: "Total consumer lag > 0."
-  
-    # - alert: KafkaHighCPU
-    #   expr: rate(container_cpu_usage_seconds_total{container=~"kafka.*"}[5m]) > 0.8
-    #   for: 2m
-    #   labels:
-    #     severity: warning
-    #   annotations:
-    #     summary: "Kafka CPU high"
+      - alert: KafkaBrokerDown
+        expr: up{job="kafka-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          priority: P1
+          service: kafka
+        annotations:
+          summary: "Kafka exporter is DOWN"
+          description: "kafka-exporter target is unreachable for 1 minute. Broker may be offline."
+          runbook: "runbooks/kafka/broker_down.md"
 
-    - alert: KafkaConsumerLagHigh
-      expr: max_over_time(kafka_consumergroup_lag[10m]) > 0
-      for: 10m
-      labels:
-        severity: warning
-        priority: P2
-        service: kafka
-      annotations:
-        summary: "Kafka consumer lag detected (10m)"
-        description: "Consumer lag has been non-zero for 10 minutes. Investigate consumer health and broker load."
-        runbook: "runbooks/kafka/consumer_lag.md"
+      - alert: KafkaConsumerLagDetected
+        expr: sum(kafka_consumergroup_lag) by (consumergroup, topic) > 100
+        for: 2m
+        labels:
+          severity: warning
+          priority: P3
+          service: kafka
+        annotations:
+          summary: "Kafka consumer lag on {{ $labels.consumergroup }}/{{ $labels.topic }}"
+          description: "Consumer group {{ $labels.consumergroup }} has lag {{ $value }} on topic {{ $labels.topic }}."
+          runbook: "runbooks/kafka/consumer_lag.md"
 
-  
-  - name: infra
-    rules:
-    - alert: NodeMemoryLow
-      expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) > 0.85
-      for: 5m
-      labels:
-        severity: warning
-      annotations:
-        summary: "Node memory usage high"
-  
+      - alert: KafkaConsumerLagHigh
+        expr: sum(kafka_consumergroup_lag) by (consumergroup, topic) > 1000
+        for: 10m
+        labels:
+          severity: critical
+          priority: P1
+          service: kafka
+        annotations:
+          summary: "Kafka consumer lag CRITICAL (10m) on {{ $labels.topic }}"
+          description: "Consumer group {{ $labels.consumergroup }} lag has exceeded 1000 for 10 minutes on topic {{ $labels.topic }}. Investigate consumer health, broker load, and partition balance."
+          runbook: "runbooks/kafka/consumer_lag.md"
+
+      - alert: KafkaUnderReplicatedPartitions
+        expr: kafka_topic_partition_under_replicated_partition > 0
+        for: 5m
+        labels:
+          severity: critical
+          priority: P1
+          service: kafka
+        annotations:
+          summary: "Kafka under-replicated partitions detected"
+          description: "Topic {{ $labels.topic }} partition {{ $labels.partition }} is under-replicated. Data durability at risk."
+          runbook: "runbooks/kafka/under_replicated.md"
+
+      - alert: KafkaTopicCountDrop
+        expr: count(kafka_topic_partitions) < 1
+        for: 2m
+        labels:
+          severity: warning
+          priority: P2
+          service: kafka
+        annotations:
+          summary: "No Kafka topics found"
+          description: "kafka-exporter reports zero topics. The broker may have lost metadata or the exporter lost connection."
+          runbook: "runbooks/kafka/topic_missing.md"
+
+  # HDFS ALERTS
 
   - name: hdfs
     rules:
@@ -74,7 +281,7 @@ groups:
           service: hdfs
         annotations:
           summary: "HDFS NameNode is DOWN"
-          description: "Prometheus cannot scrape NameNode (job=hdfs) for 1 minute. Check container/network/exporter."
+          description: "Prometheus cannot scrape NameNode (job=hdfs) for 1 minute. Check container, network, and JMX exporter."
           runbook: "runbooks/hdfs/namenode_down.md"
 
       - alert: HDFSNameNodeHighHeap
@@ -86,27 +293,146 @@ groups:
           service: hdfs
         annotations:
           summary: "HDFS NameNode heap usage > 80% (5m)"
-          description: "NameNode heap usage has been above 80% for 5 minutes. Risk of GC pressure / OOM. Investigate workload and JVM."
+          description: "NameNode heap is at {{ $value | humanizePercentage }}. Risk of GC pressure and OOM. Investigate workload and tune JVM."
           runbook: "runbooks/hdfs/high_heap.md"
 
+      - alert: HDFSNameNodeGCPause
+        expr: rate(jvm_gc_collection_seconds_sum{job="hdfs"}[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          priority: P2
+          service: hdfs
+        annotations:
+          summary: "HDFS NameNode GC pause time high"
+          description: "NameNode is spending {{ $value | printf \"%.2f\" }}s/s in GC. Performance may degrade. Consider increasing heap or reducing metadata load."
+          runbook: "runbooks/hdfs/gc_pause.md"
+
+      - alert: HDFSNameNodeThreadsHigh
+        expr: jvm_threads_current{job="hdfs"} > 500
+        for: 5m
+        labels:
+          severity: warning
+          priority: P3
+          service: hdfs
+        annotations:
+          summary: "HDFS NameNode thread count > 500"
+          description: "NameNode has {{ $value }} active threads. May indicate connection storms or handler saturation."
+          runbook: "runbooks/hdfs/threads_high.md"
+
+  # SPARK ALERTS
+
+  - name: spark
+    rules:
+      - alert: SparkMasterDown
+        expr: up{job="spark", instance=~".*spark-master.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          priority: P1
+          service: spark
+        annotations:
+          summary: "Spark Master is DOWN"
+          description: "Prometheus cannot scrape Spark Master for 1 minute. No new jobs can be scheduled."
+          runbook: "runbooks/spark/master_down.md"
+
+      - alert: SparkWorkerDown
+        expr: up{job="spark", instance=~".*spark-worker.*"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          priority: P1
+          service: spark
+        annotations:
+          summary: "Spark Worker is DOWN"
+          description: "Prometheus cannot scrape Spark Worker for 1 minute. Cluster capacity is reduced."
+          runbook: "runbooks/spark/worker_down.md"
+
+      - alert: SparkWorkerCPUHigh
+        expr: (rate(container_cpu_usage_seconds_total{name=~"spark-worker.*"}[5m])) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          priority: P2
+          service: spark
+        annotations:
+          summary: "Spark Worker CPU > 80% for 5m"
+          description: "Container spark-worker is using {{ $value | printf \"%.1f\" }}% CPU. May need more workers or resource tuning."
+          runbook: "runbooks/spark/worker_cpu.md"
+
+      - alert: SparkMasterCPUHigh
+        expr: (rate(container_cpu_usage_seconds_total{name=~"spark-master.*"}[5m])) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          priority: P2
+          service: spark
+        annotations:
+          summary: "Spark Master CPU > 80% for 5m"
+          description: "Container spark-master is consuming {{ $value | printf \"%.1f\" }}% CPU."
+          runbook: "runbooks/spark/master_cpu.md"
+
+  # CLICKHOUSE ALERTS
 
   - name: clickhouse
     rules:
+      - alert: ClickHouseDown
+        expr: up{job="clickhouse"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          priority: P1
+          service: clickhouse
+        annotations:
+          summary: "ClickHouse exporter is DOWN"
+          description: "clickhouse-exporter target unreachable for 1 minute. ClickHouse may be offline or the exporter crashed."
+          runbook: "runbooks/clickhouse/down.md"
+
       - alert: ClickHouseTooManyConnections
         expr: ClickHouseMetrics_Query > 50
         for: 1m
         labels:
           severity: warning
+          priority: P2
+          service: clickhouse
         annotations:
-          summary: "High Query Load on ClickHouse"
+          summary: "ClickHouse concurrent queries > 50"
+          description: "ClickHouse has {{ $value }} concurrent queries. Risk of resource exhaustion and query timeouts."
+          runbook: "runbooks/clickhouse/high_queries.md"
+
+      - alert: ClickHouseSlowInserts
+        expr: rate(ClickHouseProfileEvents_InsertedRows[5m]) < 10 and ClickHouseMetrics_Query > 0
+        for: 5m
+        labels:
+          severity: warning
+          priority: P2
+          service: clickhouse
+        annotations:
+          summary: "ClickHouse insert throughput is low"
+          description: "Insert rate dropped below 10 rows/s while queries are active. Possible merge pressure or disk bottleneck."
+          runbook: "runbooks/clickhouse/slow_inserts.md"
+
+      - alert: ClickHouseReplicasMaxAbsoluteDelay
+        expr: ClickHouseAsyncMetrics_ReplicasMaxAbsoluteDelay > 300
+        for: 5m
+        labels:
+          severity: critical
+          priority: P1
+          service: clickhouse
+        annotations:
+          summary: "ClickHouse replication delay > 5 min"
+          description: "Max replication delay is {{ $value }}s. Data consistency at risk across replicas."
+          runbook: "runbooks/clickhouse/replication_delay.md"
+
+  # MONITORING HEALTH
 
   - name: monitoring-partial-outage
     rules:
       - alert: MonitoringPartialOutage
         expr: |
-          absent(up{job="kafka-exporter"}) OR
-          absent(up{job="spark"}) OR
-          absent(up{job="hdfs"}) OR
+          absent(up{job="kafka-exporter"}) or
+          absent(up{job="spark"}) or
+          absent(up{job="hdfs"}) or
           absent(up{job="clickhouse"})
         for: 1m
         labels:
@@ -115,4 +441,48 @@ groups:
           component: monitoring
         annotations:
           summary: "Monitoring partial outage detected"
-          description: "One or more critical monitoring targets are missing metrics."
+          description: "One or more critical monitoring targets are missing metrics entirely. Observability is degraded — alerts for affected components may not fire."
+          runbook: "runbooks/monitoring/partial_outage.md"
+
+  # SLO / SLA ALERTS
+
+  - name: slo-sla
+    rules:
+      - alert: SLOHighErrorRate
+        expr: |
+          (
+            sum(rate(container_last_seen{name=~"kafka|clickhouse|namenode|spark-master|spark-worker"}[5m])) == 0
+          )
+        for: 5m
+        labels:
+          severity: critical
+          priority: P1
+          component: slo
+        annotations:
+          summary: "SLO violation — core service availability < 100%"
+          description: "One or more core services (kafka, clickhouse, hdfs, spark) have been unreachable for 5 minutes. SLA breach window has started."
+          runbook: "runbooks/slo/availability.md"
+
+      - alert: SLOKafkaLagBudgetBurn
+        expr: sum(kafka_consumergroup_lag) > 5000
+        for: 15m
+        labels:
+          severity: critical
+          priority: P1
+          component: slo
+        annotations:
+          summary: "SLO — Kafka lag error budget burning"
+          description: "Total consumer lag has exceeded 5000 for 15 minutes. Data freshness SLO is being violated. Immediate investigation required."
+          runbook: "runbooks/slo/kafka_lag_budget.md"
+
+      - alert: SLOHighLatencyP99
+        expr: histogram_quantile(0.99, sum(rate(prometheus_http_request_duration_seconds_bucket[5m])) by (le)) > 2
+        for: 10m
+        labels:
+          severity: warning
+          priority: P2
+          component: slo
+        annotations:
+          summary: "SLO — Monitoring API P99 latency > 2s"
+          description: "Prometheus HTTP API P99 latency is {{ $value | printf \"%.2f\" }}s. Internal monitoring tooling may be slow, affecting agent response times."
+          runbook: "runbooks/slo/latency.md"

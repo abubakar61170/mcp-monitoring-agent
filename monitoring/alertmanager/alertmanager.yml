@@ -1,5 +1,70 @@
+# route:
+#   receiver: "default"
+
+# receivers:
+#   - name: "default"
+
 route:
   receiver: "default"
+  group_by: ["service", "alertname"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    - match:
+        priority: P1
+      receiver: "critical"
+      group_wait: 10s
+      repeat_interval: 1h
+
+    - match:
+        component: slo
+      receiver: "slo"
+      group_by: ["component"]
+      repeat_interval: 30m
 
 receivers:
   - name: "default"
+  - name: "critical"
+  - name: "slo"
+
+inhibit_rules:
+  # If broker is DOWN, suppress lag alerts (lag is a symptom of broker down)
+  - source_matchers:
+      - alertname = KafkaBrokerDown
+    target_matchers:
+      - service = kafka
+      - severity = warning
+    equal: []
+
+  # If NameNode is DOWN, suppress heap/GC/thread alerts
+  - source_matchers:
+      - alertname = HDFSNameNodeDown
+    target_matchers:
+      - service = hdfs
+      - severity = warning
+    equal: []
+
+  # If Spark Master is DOWN, suppress worker alerts
+  - source_matchers:
+      - alertname = SparkMasterDown
+    target_matchers:
+      - service = spark
+      - severity = warning
+    equal: []
+
+  # If ClickHouse is DOWN, suppress query/insert alerts
+  - source_matchers:
+      - alertname = ClickHouseDown
+    target_matchers:
+      - service = clickhouse
+      - severity = warning
+    equal: []
+
+  # If MonitoringPartialOutage fires, suppress individual target-down noise
+  - source_matchers:
+      - alertname = MonitoringPartialOutage
+    target_matchers:
+      - alertname = MonitoringTargetDown
+    equal: []

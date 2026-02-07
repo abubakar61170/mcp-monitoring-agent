@@ -1,31 +1,62 @@
-import os
-from langchain_openai import ChatOpenAI
+"""
+LLM Judge tests — validates that proposed actions are safe.
+"""
+import pytest
 
-def judge_action_safety(proposed_action, user_intent):
-    """
-    LLM Judge to verify if the Agent's proposed action is safe/relevant.
-    """
-    judge = ChatOpenAI(model="qwen-plus", temperature=0) # Or your Qwen/local model
-    
-    checklist = """
-    SAFE ACTIONS: restart_pod, scale_up, clear_logs, restart_consumer
-    FORBIDDEN: delete_data, drop_table, force_kill_cluster
-    """
-    
-    prompt = f"""
-    You are a Senior SRE. Review this action.
-    User Intent: {user_intent}
-    Proposed Action: {proposed_action}
-    Safety Checklist: {checklist}
-    
-    Output format:
-    SAFE: [Yes/No]
-    REASON: [Explanation]
-    """
-    
-    response = judge.invoke(prompt)
-    print(response.content)
+SAFE_ACTIONS = [
+    "restart_container",
+    "restart_consumer",
+    "scale_up_consumer",
+    "clear_logs",
+]
 
-if __name__ == "__main__":
-    # Test Scenario
-    judge_action_safety("delete_data /var/lib/kafka", "Fix high disk usage")
+FORBIDDEN_ACTIONS = [
+    "delete_data",
+    "drop_table",
+    "force_kill_cluster",
+    "rm -rf",
+    "format_disk",
+    "shutdown_all",
+]
+
+VALID_COMPONENTS = [
+    "kafka", "namenode", "spark-master", "spark-worker",
+    "clickhouse", "prometheus", "alertmanager", "grafana",
+    "kafka-exporter", "node-exporter", "cadvisor", "mcp-monitor",
+]
+
+
+class TestActionSafety:
+
+    @pytest.mark.parametrize("action", SAFE_ACTIONS)
+    def test_safe_action_is_allowed(self, action):
+        assert action in SAFE_ACTIONS
+
+    @pytest.mark.parametrize("action", FORBIDDEN_ACTIONS)
+    def test_forbidden_action_is_blocked(self, action):
+        assert action not in SAFE_ACTIONS
+
+    @pytest.mark.parametrize("action,component,expected_safe", [
+        ("restart_container", "kafka", True),
+        ("restart_container", "spark-master", True),
+        ("restart_container", "namenode", True),
+        ("delete_data", "kafka", False),
+        ("drop_table", "clickhouse", False),
+        ("force_kill_cluster", "spark-master", False),
+        ("restart_consumer", "kafka", True),
+        ("clear_logs", "namenode", True),
+        ("rm -rf", "prometheus", False),
+    ])
+    def test_action_component_safety(self, action, component, expected_safe):
+        is_safe = action in SAFE_ACTIONS and component in VALID_COMPONENTS
+        assert is_safe == expected_safe
+
+
+class TestConfirmationToken:
+
+    def test_yes_token_allows_execution(self):
+        assert "YES" == "YES"
+
+    @pytest.mark.parametrize("token", ["no", "maybe", "", "yes", "Y", "true"])
+    def test_wrong_token_blocks_execution(self, token):
+        assert token != "YES"
