@@ -4,6 +4,16 @@ An **AI-powered SRE Agent** that monitors a Big Data cluster (Kafka, HDFS, Spark
 
 Built with **LangGraph** (ReAct agent), **MCP-Monitor** (Model Context Protocol server), **Prometheus**, **Alertmanager**, **Grafana**, and **Docker Compose**.
 
+> **Course**: Big Data & Machine Learning — [ITMO University](https://itmo.ru/)  
+> **Semester**: 3
+
+### Authors
+
+| Name | GitHub |
+|------|--------|
+| Abubakar | [@abubakar61170](https://github.com/abubakar61170) |
+| Neko-v | [@Neko-v](https://github.com/Neko-v) |
+
 ---
 
 ## Table of Contents
@@ -518,4 +528,19 @@ ports: ["9091:9090"]  # Map to a different host port
 
 ## License
 
-This project is developed as part of the ITMO Big Data & ML program.
+---
+
+## Authors
+
+| Name | GitHub | Contribution |
+|------|--------|-------------|
+| **Abubakar** | [@abubakar61170](https://github.com/abubakar61170) | Agent, Monitoring stack, alert rules, runbooks, MCP server, testing, deployment |
+| **Neko-v** | [@Neko-v](https://github.com/Neko-v) | Agent, testing, Dashboards |
+
+## Course
+
+This project was developed as part of the **Big Data & Machine Learning** program at **[ITMO University](https://itmo.ru/)** (Semester 3).
+
+## License
+
+This project is for educational purposes as part of the ITMO Big Data & ML curriculum.
